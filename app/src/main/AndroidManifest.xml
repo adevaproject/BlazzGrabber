@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
@@ -17,6 +18,14 @@
             <intent-filter>
                 <action android:name="com.blazzgrabber.UNDUH_VIDEO" />
                 <action android:name="com.blazzgrabber.CEK_STATUS" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".NotificationReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.blazzgrabber.NOTIFY" />
             </intent-filter>
         </receiver>
 

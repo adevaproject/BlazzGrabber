@@ -43,6 +43,12 @@ Pada perangkat Samsung yang menahan aplikasi tanpa launcher di standby, aktifkan
 adb shell am set-standby-bucket com.blazzgrabber active
 ```
 
+Pada Android 13/API 33 atau lebih baru, berikan izin notifikasi melalui ADB:
+
+```powershell
+adb shell pm grant com.blazzgrabber android.permission.POST_NOTIFICATIONS
+```
+
 ## Mengunduh File
 
 Kirim URL file langsung melalui broadcast ADB. Opsi `--include-stopped-packages` diperlukan untuk aplikasi tanpa activity launcher, terutama setelah instalasi baru.
@@ -55,6 +61,38 @@ adb shell am broadcast -W --include-stopped-packages `
 ```
 
 Unduhan diproses oleh Android setelah broadcast selesai. ADB hanya membawa URL, bukan isi video.
+
+## Notifikasi dari ADB
+
+Action notifikasi berdiri sendiri dan tidak memulai atau mengubah unduhan. Gunakan `type=progress` untuk status senyap, atau `type=complete`, `success`, maupun `error` untuk notifikasi dengan sound effect bawaan `blazz-app-sfx.mp3`.
+
+```powershell
+adb shell am broadcast -W --include-stopped-packages `
+  -a com.blazzgrabber.NOTIFY `
+  -p com.blazzgrabber `
+  --es type progress `
+  --es text "Proses unduh dimulai"
+
+adb shell am broadcast -W --include-stopped-packages `
+  -a com.blazzgrabber.NOTIFY `
+  -p com.blazzgrabber `
+  --es type complete `
+  --es text "Proses selesai"
+```
+
+Pilihan suara dapat ditentukan eksplisit dengan `--es sound blazz` atau dibisukan dengan `--es sound none`. Suara Android dikendalikan melalui channel notifikasi; pengguna tetap dapat mengubah atau membisukan channel di Settings. Teks notifikasi dibatasi hingga 200 karakter.
+
+Contoh untuk proses lain:
+
+```powershell
+adb shell am broadcast -W --include-stopped-packages `
+  -a com.blazzgrabber.NOTIFY `
+  -p com.blazzgrabber `
+  --es type progress `
+  --es text "Sedang mengunggah video..."
+```
+
+Log notifikasi menggunakan tag `BlazzResponse` dengan marker `NOTIFY_TAMPIL` atau `NOTIFY_GAGAL`.
 
 ## Memantau Unduhan
 
