@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/blazzgrabber_icon"
+        android:label="BlazzGrabber"
+        android:roundIcon="@drawable/blazzgrabber_icon"
+        android:supportsRtl="true">
+        <receiver
+            android:name=".DownloadReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.blazzgrabber.UNDUH_VIDEO" />
+                <action android:name="com.blazzgrabber.CEK_STATUS" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".DownloadCompletedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
