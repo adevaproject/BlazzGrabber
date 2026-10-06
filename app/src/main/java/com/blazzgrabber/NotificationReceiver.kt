@@ -45,9 +45,8 @@ class NotificationReceiver : BroadcastReceiver() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
+                PackageManager.PERMISSION_GRANTED
         ) {
-            Log.e(LOG_TAG, "NOTIFY_GAGAL alasan=IZIN_NOTIFIKASI_BELUM_DIBERIKAN")
             return
         }
 
@@ -60,10 +59,7 @@ class NotificationReceiver : BroadcastReceiver() {
             ?.takeIf { it.isNotEmpty() }
             ?: UUID.randomUUID().toString()
 
-        val channelId = context.getString(
-            if (shouldPlaySound) R.string.notification_sound_channel_id
-            else R.string.notification_silent_channel_id
-        )
+        val channelId = rawChannelId(type, notificationTag)
         val soundUri = notificationSoundUri(context)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(context, channelId)
@@ -98,7 +94,7 @@ class NotificationReceiver : BroadcastReceiver() {
 
         notificationManager.createNotificationChannel(
             NotificationChannel(
-                context.getString(R.string.notification_silent_channel_id),
+                rawChannelId(type, notificationTag),
                 context.getString(R.string.notification_silent_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
@@ -115,7 +111,7 @@ class NotificationReceiver : BroadcastReceiver() {
         val soundUri = notificationSoundUri(context)
         notificationManager.createNotificationChannel(
             NotificationChannel(
-                context.getString(R.string.notification_sound_channel_id),
+                "blazzgrabber_${rawChannelId(type, notificationTag)}",
                 context.getString(R.string.notification_sound_channel_name),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
@@ -142,5 +138,10 @@ class NotificationReceiver : BroadcastReceiver() {
         const val MAX_NOTIFICATION_ID_LENGTH = 100
         const val LOG_TAG = "BlazzResponse"
         val SOUND_TYPES = setOf("complete", "success", "error")
+
+        private fun rawChannelId(type: String, tag: String): String = when (type) {
+            TYPE_PROGRESS -> "progress-$tag"
+            else -> "download-$tag"
+        }
     }
 }
