@@ -22,7 +22,9 @@ Ubah nilai build-time di [`app-config.properties`](app-config.properties). Gradl
 |---|---|
 | `app_name` | Nama aplikasi di Settings dan judul notifikasi |
 | `app_icon` | Path ikon PNG relatif ke folder `app` |
-| `notification_sound` | Path MP3 notifikasi relatif ke folder `app` |
+| `notification_sound` | Path MP3 saat unduhan/progres relatif ke folder `app` |
+| `notification_sound_success` | Path MP3 untuk `type=complete` atau `type=success` |
+| `notification_sound_error` | Path MP3 untuk `type=error` |
 | `download_folder` | Subfolder di `Download/` pada ponsel |
 | `apk_file_name` | Nama APK hasil build |
 | `notification_silent_channel_id` | ID channel notifikasi tanpa suara |
@@ -150,7 +152,7 @@ Unduhan diproses oleh Android setelah broadcast selesai. ADB hanya membawa URL, 
 
 ## Notifikasi dari ADB
 
-Action notifikasi berdiri sendiri dan tidak memulai atau mengubah unduhan. Gunakan `type=progress` untuk status senyap, atau `type=complete`, `success`, maupun `error` untuk notifikasi dengan sound effect bawaan `blazz-app-sfx.mp3`.
+Action notifikasi berdiri sendiri dan tidak memulai atau mengubah unduhan. Extra `title` bersifat opsional; jika tidak dikirim atau kosong, judul memakai nama aplikasi dari config. Sound dipilih dari tiga file di `app-config.properties`: `progress`/`download` memakai sound unduhan, `complete`/`success` memakai sound sukses, dan `error` memakai sound error. Tambahkan `--es sound none` untuk membuat notifikasi senyap.
 
 ```powershell
 adb shell am broadcast -W --include-stopped-packages `
@@ -162,11 +164,12 @@ adb shell am broadcast -W --include-stopped-packages `
 adb shell am broadcast -W --include-stopped-packages `
   -a com.blazzgrabber.NOTIFY `
   -p com.blazzgrabber `
+  --es title "Video x-123.mp4 selesai" `
   --es type complete `
-  --es text "Proses selesai"
+  --es text "Unduhan video selesai tersimpan di gallery"
 ```
 
-Pilihan suara dapat ditentukan eksplisit dengan `--es sound blazz` atau dibisukan dengan `--es sound none`. Suara Android dikendalikan melalui channel notifikasi; pengguna tetap dapat mengubah atau membisukan channel di Settings. Teks notifikasi dibatasi hingga 200 karakter. Android menampilkan waktu relatif notifikasi secara otomatis, misalnya `1j`.
+Extra `--es sound blazz` mengaktifkan sound sesuai jenis notifikasi, sedangkan `--es sound none` mematikannya. Suara Android dikendalikan melalui channel terpisah untuk download, sukses, dan error; pengguna tetap dapat mengubah atau membisukan tiap channel di Settings. Teks notifikasi dibatasi hingga 200 karakter. Android menampilkan waktu relatif notifikasi secara otomatis, misalnya `1j`.
 
 Tanpa extra `id`, setiap broadcast membuat item notifikasi baru sehingga notifikasi sebelumnya tetap ada. Untuk memperbarui item yang sama, kirim `id` yang sama pada setiap tahap. Contoh ini membuat satu item untuk sebuah proses upload:
 

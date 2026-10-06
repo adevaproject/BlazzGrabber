@@ -20,20 +20,32 @@ val configuredAppName = requiredConfig("app_name")
 val configuredDownloadFolder = requiredConfig("download_folder")
 val configuredApkFileName = requiredConfig("apk_file_name")
 val iconSource = layout.projectDirectory.file(requiredConfig("app_icon"))
-val soundSource = layout.projectDirectory.file(requiredConfig("notification_sound"))
+val downloadSoundSource = layout.projectDirectory.file(requiredConfig("notification_sound"))
+val successSoundSource = layout.projectDirectory.file(requiredConfig("notification_sound_success"))
+val errorSoundSource = layout.projectDirectory.file(requiredConfig("notification_sound_error"))
 val configuredResources = layout.buildDirectory.dir("generated/configured-resources/main")
 
 if (!iconSource.asFile.isFile) error("Configured app icon not found: ${iconSource.asFile}")
-if (!soundSource.asFile.isFile) error("Configured notification sound not found: ${soundSource.asFile}")
+if (!downloadSoundSource.asFile.isFile) error("Configured download sound not found: ${downloadSoundSource.asFile}")
+if (!successSoundSource.asFile.isFile) error("Configured success sound not found: ${successSoundSource.asFile}")
+if (!errorSoundSource.asFile.isFile) error("Configured error sound not found: ${errorSoundSource.asFile}")
 
 val copyConfiguredResources = tasks.register<Copy>("copyConfiguredResources") {
     from(iconSource) {
         into("drawable-nodpi")
         rename { "blazzgrabber_icon.png" }
     }
-    from(soundSource) {
+    from(downloadSoundSource) {
         into("raw")
         rename { "blazz_app_sfx.mp3" }
+    }
+    from(successSoundSource) {
+        into("raw")
+        rename { "blazz_app_sfx_success.mp3" }
+    }
+    from(errorSoundSource) {
+        into("raw")
+        rename { "blazz_app_sfx_error.mp3" }
     }
     into(configuredResources)
 }
@@ -68,6 +80,8 @@ android {
         )
         resValue("string", "notification_silent_channel_name", "$configuredAppName status")
         resValue("string", "notification_sound_channel_name", "$configuredAppName alerts")
+        resValue("string", "notification_success_channel_name", "$configuredAppName success")
+        resValue("string", "notification_error_channel_name", "$configuredAppName errors")
         resValue("bool", "allow_http", requiredConfig("allow_http").toBooleanStrict().toString())
         resValue("string", "allowed_hosts", optionalConfig("allowed_hosts"))
     }
