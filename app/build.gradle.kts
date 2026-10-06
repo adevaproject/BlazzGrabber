@@ -1,24 +1,88 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
+}
+
+val appConfigFile = rootProject.file("app-config.properties")
+val appConfig = Properties().apply {
+    appConfigFile.inputStream().use { input -> load(input) }
+}
+
+fun requiredConfig(key: String): String = appConfig.getProperty(key)
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: error("Missing or empty '$key' in app-config.properties")
+
+fun optionalConfig(key: String): String = appConfig.getProperty(key)?.trim().orEmpty()
+
+val configuredAppName = requiredConfig("app_name")
+val configuredDownloadFolder = requiredConfig("download_folder")
+val configuredApkFileName = requiredConfig("apk_file_name")
+val iconSource = layout.projectDirectory.file(requiredConfig("app_icon"))
+val soundSource = layout.projectDirectory.file(requiredConfig("notification_sound"))
+val configuredResources = layout.buildDirectory.dir("generated/configured-resources/main")
+
+if (!iconSource.asFile.isFile) error("Configured app icon not found: ${iconSource.asFile}")
+if (!soundSource.asFile.isFile) error("Configured notification sound not found: ${soundSource.asFile}")
+
+val copyConfiguredResources = tasks.register<Copy>("copyConfiguredResources") {
+    from(iconSource) {
+        into("drawable-nodpi")
+        rename { "blazzgrabber_icon.png" }
+    }
+    from(soundSource) {
+        into("raw")
+        rename { "blazz_app_sfx.mp3" }
+    }
+    into(configuredResources)
 }
 
 android {
     namespace = "com.blazzgrabber"
     compileSdk = 36
 
+    buildFeatures {
+        resValues = true
+    }
+
+    sourceSets.getByName("main").res.setSrcDirs(listOf(configuredResources))
+
     defaultConfig {
         applicationId = "com.blazzgrabber"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1.0"
+        resValue("string", "app_name", configuredAppName)
+        resValue("string", "download_folder", configuredDownloadFolder)
+        resValue(
+            "string",
+            "notification_silent_channel_id",
+            requiredConfig("notification_silent_channel_id")
+        )
+        resValue(
+            "string",
+            "notification_sound_channel_id",
+            requiredConfig("notification_sound_channel_id")
+        )
+        resValue("string", "notification_silent_channel_name", "$configuredAppName status")
+        resValue("string", "notification_sound_channel_name", "$configuredAppName alerts")
+        resValue("bool", "allow_http", requiredConfig("allow_http").toBooleanStrict().toString())
+        resValue("string", "allowed_hosts", optionalConfig("allowed_hosts"))
+    }
+}
+
+tasks.configureEach {
+    if (name == "preBuild") {
+        dependsOn(copyConfiguredResources)
     }
 }
 
 tasks.register<Copy>("copyDebugApk") {
     from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
     into(layout.buildDirectory.dir("outputs/named-apk"))
-    rename { "blazz-grabber.apk" }
+    rename { configuredApkFileName }
 }
 
 tasks.configureEach {

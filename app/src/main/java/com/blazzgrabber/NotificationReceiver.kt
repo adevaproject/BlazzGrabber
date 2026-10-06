@@ -13,6 +13,7 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import java.util.Locale
+import java.util.UUID
 
 class NotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -53,11 +54,17 @@ class NotificationReceiver : BroadcastReceiver() {
         createChannels(context, notificationManager)
 
         val isProgress = type == TYPE_PROGRESS
-        val notificationId = if (isProgress) PROGRESS_NOTIFICATION_ID else EVENT_NOTIFICATION_ID
-        notificationManager.cancel(if (isProgress) EVENT_NOTIFICATION_ID else PROGRESS_NOTIFICATION_ID)
+        val notificationTag = intent.getStringExtra(EXTRA_NOTIFICATION_ID)
+            ?.trim()
+            ?.take(MAX_NOTIFICATION_ID_LENGTH)
+            ?.takeIf { it.isNotEmpty() }
+            ?: UUID.randomUUID().toString()
 
-        val channelId = if (shouldPlaySound) SOUND_CHANNEL_ID else SILENT_CHANNEL_ID
-        val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.blazz_app_sfx}")
+        val channelId = context.getString(
+            if (shouldPlaySound) R.string.notification_sound_channel_id
+            else R.string.notification_silent_channel_id
+        )
+        val soundUri = notificationSoundUri(context)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(context, channelId)
         } else {
@@ -65,16 +72,22 @@ class NotificationReceiver : BroadcastReceiver() {
         }
 
         val notification = builder
-            .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("BlazzGrabber")
+            .setSmallIcon(R.drawable.blazzgrabber_icon)
+            .setContentTitle(context.getString(R.string.app_name))
             .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setWhen(System.currentTimeMillis())
+            .setShowWhen(true)
             .setOnlyAlertOnce(isProgress)
             .setAutoCancel(!isProgress)
             .build()
 
         try {
-            notificationManager.notify(notificationId, notification)
-            Log.i(LOG_TAG, "NOTIFY_TAMPIL type=$type sound=${if (shouldPlaySound) SOUND_BLAZZ else SOUND_NONE}")
+            notificationManager.notify(notificationTag, NOTIFICATION_ID, notification)
+            Log.i(
+                LOG_TAG,
+                "NOTIFY_TAMPIL type=$type id=$notificationTag sound=${if (shouldPlaySound) SOUND_BLAZZ else SOUND_NONE}"
+            )
         } catch (exception: SecurityException) {
             Log.e(LOG_TAG, "NOTIFY_GAGAL alasan=IZIN_NOTIFIKASI_BELUM_DIBERIKAN")
         }
@@ -83,38 +96,37 @@ class NotificationReceiver : BroadcastReceiver() {
     private fun createChannels(context: Context, notificationManager: NotificationManager) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
 
-        if (notificationManager.getNotificationChannel(SILENT_CHANNEL_ID) == null) {
-            notificationManager.createNotificationChannel(
-                NotificationChannel(
-                    SILENT_CHANNEL_ID,
-                    "BlazzGrabber status",
-                    NotificationManager.IMPORTANCE_LOW
-                ).apply {
-                    description = "Status proses dari perintah ADB"
-                    setSound(null, null)
-                    enableVibration(false)
-                }
-            )
-        }
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                context.getString(R.string.notification_silent_channel_id),
+                context.getString(R.string.notification_silent_channel_name),
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Status proses dari perintah ADB"
+                setSound(null, null)
+                enableVibration(false)
+            }
+        )
 
-        if (notificationManager.getNotificationChannel(SOUND_CHANNEL_ID) == null) {
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.blazz_app_sfx}")
-            notificationManager.createNotificationChannel(
-                NotificationChannel(
-                    SOUND_CHANNEL_ID,
-                    "BlazzGrabber alerts",
-                    NotificationManager.IMPORTANCE_DEFAULT
-                ).apply {
-                    description = "Notifikasi selesai atau error"
-                    setSound(soundUri, audioAttributes)
-                }
-            )
-        }
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        val soundUri = notificationSoundUri(context)
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                context.getString(R.string.notification_sound_channel_id),
+                context.getString(R.string.notification_sound_channel_name),
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Notifikasi selesai atau error"
+                setSound(soundUri, audioAttributes)
+            }
+        )
     }
+
+    private fun notificationSoundUri(context: Context): Uri =
+        Uri.parse("android.resource://${context.packageName}/raw/blazz_app_sfx")
 
     private companion object {
         const val ACTION_NOTIFY = "com.blazzgrabber.NOTIFY"
@@ -124,11 +136,10 @@ class NotificationReceiver : BroadcastReceiver() {
         const val TYPE_PROGRESS = "progress"
         const val SOUND_BLAZZ = "blazz"
         const val SOUND_NONE = "none"
-        const val SILENT_CHANNEL_ID = "blazzgrabber_status"
-        const val SOUND_CHANNEL_ID = "blazzgrabber_alerts"
-        const val PROGRESS_NOTIFICATION_ID = 8301
-        const val EVENT_NOTIFICATION_ID = 8302
+        const val EXTRA_NOTIFICATION_ID = "id"
+        const val NOTIFICATION_ID = 8301
         const val MAX_TEXT_LENGTH = 200
+        const val MAX_NOTIFICATION_ID_LENGTH = 100
         const val LOG_TAG = "BlazzResponse"
         val SOUND_TYPES = setOf("complete", "success", "error")
     }
