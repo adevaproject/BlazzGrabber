@@ -6,3 +6,6 @@
 *.iml
 /.idea/
 arsip
+hs_err_pid*.log
+replay_pid*.log
+.build.log
