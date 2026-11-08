@@ -340,7 +340,7 @@ adb shell am broadcast -W --include-stopped-packages `
 ```
 
 ```json
-{"ok":true,"version_name":"1.1.0","version_code":2,"sdk":28,
+{"ok":true,"version_name":"1.2.0","version_code":3,"sdk":28,
  "perm":{"storage_write":true,"storage_read":true,"notifications":true,"manage_storage":false},
  "storage_free_mb":5120,"battery_pct":78,"media_dir":"/storage/emulated/0/Download/BlazzMedia"}
 ```
