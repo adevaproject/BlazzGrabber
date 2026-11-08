@@ -45,12 +45,15 @@ class MediaReceiver : BroadcastReceiver() {
     }
 
     private fun checkFile(context: Context, filename: String): JsonResponse {
-        val info = GalleryStore.info(context, filename)
+        // Tunggu singkat bila file baru selesai diunduh dan MediaStore belum mengindeksnya,
+        // supaya pemeriksaan pertama sudah mengembalikan gallery_rank (kasus Android 9).
+        val info = GalleryStore.infoWaitingForIndex(context, filename)
         if (!info.exists) return JsonResponse.ok().bool("exists", false)
 
         val response = JsonResponse.ok()
             .bool("exists", true)
             .num("size", info.size)
+            .str("type", info.mediaType)
             .bool("in_mediastore", info.inMediaStore)
             .num("date_added", info.dateAdded)
             .num("date_modified", info.dateModified)

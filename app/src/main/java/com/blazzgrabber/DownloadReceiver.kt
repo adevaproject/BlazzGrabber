@@ -97,25 +97,13 @@ class DownloadReceiver : BroadcastReceiver() {
             if (olderThanHours > 0 && file.lastModified() >= cutoff) continue
             val size = file.length()
             if (file.delete()) {
-                deleteMediaStoreRows(context, file)
+                GalleryStore.deleteMediaStoreRows(context, file)
                 deleted++
                 freed += size
             }
         }
         Log.i(LOG_TAG, "CLEANUP_SELESAI deleted=$deleted freed=$freed")
         return JsonResponse.ok().num("deleted", deleted).num("freed_bytes", freed).withRef(ref)
-    }
-
-    private fun deleteMediaStoreRows(context: Context, file: java.io.File) {
-        try {
-            context.contentResolver.delete(
-                android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                "${android.provider.MediaStore.MediaColumns.DATA}=?",
-                arrayOf(file.absolutePath)
-            )
-        } catch (exception: Exception) {
-            Log.e(LOG_TAG, "CLEANUP_BARIS_GAGAL file=${file.name} alasan=${exception.javaClass.simpleName}")
-        }
     }
 
     private fun handleDownload(context: Context, intent: Intent) {

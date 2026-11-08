@@ -84,6 +84,13 @@ adb shell pm grant com.blazzgrabber android.permission.WRITE_EXTERNAL_STORAGE
 adb shell pm grant com.blazzgrabber android.permission.READ_EXTERNAL_STORAGE
 ```
 
+Android 13+ — izin media (dipakai `CEK_FILE`/`TOUCH` untuk membaca baris MediaStore gambar dan video):
+
+```powershell
+adb shell pm grant com.blazzgrabber android.permission.READ_MEDIA_IMAGES
+adb shell pm grant com.blazzgrabber android.permission.READ_MEDIA_VIDEO
+```
+
 Android 13+ — izin notifikasi:
 
 ```powershell
@@ -148,11 +155,22 @@ adb shell am broadcast -W --include-stopped-packages `
   --es url "https://example.com/video.mp4"
 ```
 
-Unduhan diproses oleh Android setelah broadcast selesai. ADB hanya membawa URL, bukan isi video.
+Unduhan diproses oleh Android setelah broadcast selesai. ADB hanya membawa URL, bukan isi file.
+
+`UNDUH_VIDEO` menerima file apa pun lewat URL. Ekstensi gambar (`.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`, `.heic`, `.heif`, `.bmp`) diperlakukan sebagai **gambar** dan diindeks ke koleksi MediaStore Images; sisanya dianggap video. `CEK_FILE`, `TOUCH`, `CEK_STATUS` (`indexed`), dan `CLEANUP` otomatis memakai koleksi yang sesuai jenis file.
 
 ## Notifikasi dari ADB
 
 Action notifikasi berdiri sendiri dan tidak memulai atau mengubah unduhan. Extra `title` bersifat opsional; jika tidak dikirim atau kosong, judul memakai nama aplikasi dari config. Sound dipilih dari tiga file di `app-config.properties`: `progress`/`download` memakai sound unduhan, `complete`/`success` memakai sound sukses, dan `error` memakai sound error. Tambahkan `--es sound none` untuk membuat notifikasi senyap.
+
+| Extra | Tipe | Keterangan |
+|---|---|---|
+| `type` | string | Wajib. `progress`, `download`, `complete`, `success`, atau `error` |
+| `text` | string | Wajib, maksimal 200 karakter |
+| `title` | string | Opsional; default nama aplikasi |
+| `sound` | string | `blazz` atau `none` |
+| `id` | string | Opsional; memperbarui item notifikasi yang sama |
+| `image` | string | Opsional; URL gambar `http`/`https` untuk thumbnail |
 
 ```powershell
 adb shell am broadcast -W --include-stopped-packages `
@@ -214,6 +232,23 @@ adb -s adb-RR8M60FA87W-iJeRp2._adb-tls-connect._tcp shell "am broadcast --includ
 ```
 Log notifikasi menggunakan tag `BlazzResponse` dengan marker `NOTIFY_TAMPIL` atau `NOTIFY_GAGAL`.
 
+### Gambar thumbnail (opsional)
+
+Extra `image` menerima URL gambar (`http`/`https`) untuk ditampilkan sebagai large icon notifikasi, misalnya poster video atau thumbnail hasil proses. Tanpa `image`, notifikasi tampil seperti sebelumnya: teks saja.
+
+```powershell
+adb shell am broadcast -W --include-stopped-packages `
+  -a com.blazzgrabber.NOTIFY `
+  -p com.blazzgrabber `
+  --es type complete `
+  --es text "Unduhan selesai" `
+  --es image "https://cdn.example.com/thumb/x-123.jpg"
+```
+
+Gambar bersifat opsional dan tidak pernah menggagalkan notifikasi. Isinya diunduh ke memori lalu di-downsample ke sisi terpanjang 256 px; gambar tidak pernah disimpan sebagai file, sehingga tidak masuk galeri dan tidak mengubah `gallery_rank` file di `Download/BlazzMedia/`. Batas: timeout 3 detik untuk koneksi dan 3 detik untuk baca, ukuran maksimal 5 MB. Bila URL mati, HTTP gagal, timeout, body terlalu besar, atau isinya bukan gambar, notifikasi tetap tampil dengan teks saja dan logcat mencatat `NOTIFY_TANPA_GAMBAR alasan=...` (`HTTP_404`, `TERLALU_BESAR`, `BUKAN_GAMBAR`, dan sejenisnya).
+
+Hasil unduhan disimpan di memori maksimal 8 URL, sehingga update `id` yang sama tidak mengunduh ulang. Kegagalan tidak dicoba ulang selama 30 detik. Tanpa extra `image`, aplikasi tidak membuka koneksi jaringan sama sekali.
+
 ## Memantau Unduhan
 
 Lihat pesan aplikasi:
@@ -266,14 +301,16 @@ adb shell am broadcast -W --include-stopped-packages `
 ```
 
 ```json
-{"ok":true,"exists":true,"size":21107071,"in_mediastore":true,"date_added":1759476120,"date_modified":1759476120,"gallery_rank":0}
+{"ok":true,"exists":true,"size":21107071,"type":"video","in_mediastore":true,"date_added":1759476120,"date_modified":1759476120,"gallery_rank":0}
 ```
 
-`gallery_rank: 0` berarti item pertama di galeri.
+`type` bernilai `video` atau `image`. `gallery_rank: 0` berarti item pertama di galeri. Rank dihitung per jenis media: rank gambar diukur di antara gambar, rank video di antara video.
+
+Bila file sudah ada tetapi MediaStore belum mengindeksnya (umum terjadi di Android 9 tepat setelah unduhan selesai karena scan MediaProvider berjalan asinkron), `CEK_FILE` memicu scan dan menunggu hingga sekitar 3 detik sebelum membalas. Dengan begitu pemeriksaan rank pertama sudah mengembalikan `gallery_rank`, tanpa perlu memanggil ulang.
 
 ### `TOUCH`
 
-Extra: `filename`. Menjadikan file item pertama di galeri tanpa mengunduh ulang.
+Extra: `filename`. Menjadikan file item pertama di galeri tanpa mengunduh ulang. Berlaku untuk video maupun gambar.
 
 ```powershell
 adb shell am broadcast -W --include-stopped-packages `
@@ -284,7 +321,11 @@ adb shell am broadcast -W --include-stopped-packages `
 
 Respons: `{"ok":true,"gallery_rank":0}`; bila gagal: `{"ok":false,"error":"TOUCH_FAILED"}`.
 
-Cara kerja: file dipindah sementara, baris MediaStore lama dihapus, file disalin kembali dengan nama yang sama sebagai file baru, lalu diindeks ulang. Di Android 10+ baris baru di-finalize lewat `IS_PENDING`; di Android ≤ 9 memakai `MediaScannerConnection.scanFile`. Bila file sudah berada di urutan 0, `TOUCH` langsung selesai tanpa menyalin.
+Cara kerja: file dipindah sementara, baris MediaStore lama dihapus, file disalin kembali dengan nama yang sama sebagai file baru, lalu diindeks ulang lewat `ContentResolver.insert` di semua versi Android (Android 10+ di-finalize lewat `IS_PENDING`). Bila insert ditolak karena sudah ada baris `_data` yang sama, aplikasi memicu `MediaScannerConnection.scanFile` lalu menunggu baris itu terlihat. Dengan begitu file yang masuk lewat `adb push` dari komputer tetap bisa dipindah ke urutan 0, meskipun push meninggalkan baris pending milik proses lain. Bila file sudah berada di urutan 0, `TOUCH` langsung selesai tanpa menyalin.
+
+### Baris MediaStore pending
+
+File yang ditulis proses lain (mis. `adb push` dari komputer) bisa meninggalkan baris MediaStore `is_pending=1` milik proses itu. Baris seperti ini tidak terlihat aplikasi, sehingga `CEK_FILE` sempat membalas `in_mediastore:false` tanpa `gallery_rank` dan `TOUCH` gagal `RANK=-1`. Sekarang kedua action itu menyelesaikannya: baris pending milik aplikasi sendiri di-finalize lewat `IS_PENDING=0`, sedangkan baris milik proses lain dipicu ulang lewat `MediaScannerConnection.scanFile` lalu ditunggu sampai terlihat (maksimal sekitar 3 detik). Marker logcat: `INDEX_FINAL type=... id=...` ketika baris diselesaikan, dan `INDEX_GAGAL ... alasan=SQLiteConstraintException` ketika insert pertama ditolak sebelum pemulihan berhasil.
 
 ## Info Perangkat
 
@@ -316,7 +357,7 @@ Extra: `download_id` atau `ref`. Membatalkan unduhan berjalan dan menghapus file
 
 ### `CLEANUP`
 
-Extra: `filename` atau `older_than_hours` (int). Hanya menghapus file video di folder `BlazzMedia`.
+Extra: `filename` atau `older_than_hours` (int). Hanya menghapus file video dan gambar di folder `BlazzMedia`.
 
 ```json
 {"ok":true,"deleted":3,"freed_bytes":63321213}
@@ -333,6 +374,7 @@ Extra: `filename` atau `older_than_hours` (int). Hanya menghapus file video di f
 | `BATAL_UNDUH` | `NOT_FOUND`, `INTERNAL` |
 | `CLEANUP` | `BAD_ARGS`, `INTERNAL` |
 | `INFO` | `INTERNAL` |
+| `NOTIFY` | Tidak ada respons JSON; kegagalan dicatat di logcat sebagai `NOTIFY_GAGAL` atau `NOTIFY_TANPA_GAMBAR` |
 
 Catatan: `SIZE_MISMATCH` dan `NO_PERMISSION` dari rencana kontrak v0.1 **belum diimplementasikan**. Ukuran akhir unduhan tidak dibandingkan dengan `expected_size`, dan izin yang kurang dilaporkan lewat `INFO.perm.*`, bukan `NO_PERMISSION`.
 
@@ -428,6 +470,10 @@ Action baru (balasan JSON lewat `setResultData`) diuji pada Samsung A20 (Android
 | `CLEANUP` tanpa extra | ✅ `BAD_ARGS` |
 | `HOST_NOT_ALLOWED` / `BAD_URL` | ✅ ditolak sesuai konfigurasi |
 | Izin `DUMP` | ✅ shell/ADB bisa, app lain tidak |
+| `CEK_FILE` gambar | ✅ `type:"image"`, `in_mediastore:true`, `gallery_rank:0` (Samsung, `gelang-1.jpeg`) |
+| `TOUCH` gambar | ✅ `gallery_rank:0` |
+| `CEK_FILE`/`TOUCH` gambar hasil `adb push` | ✅ Android 9 (ASUS): baris dibuat saat `CEK_FILE`, rank 0 → 1 setelah gambar baru, `TOUCH` → 0. Android 11 (Samsung): baris `is_pending=1` milik `com.android.shell` diselesaikan lewat scan, lalu `TOUCH` → 0 |
+| `CEK_FILE` video (regresi) | ✅ `type:"video"`, rank dihitung di koleksi video |
 
 Android 7 (Sony SO-01H): `INFO` sudah terverifikasi (`sdk:24`, `storage_write/read:true`); uji unduh/`TOUCH` **ditunda** karena koneksi WiFi perangkat sedang bermasalah (DownloadManager `connect timed out`). Akan diulang saat koneksi Sony normal.
 
